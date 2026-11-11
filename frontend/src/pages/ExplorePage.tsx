@@ -188,13 +188,17 @@ export function ExplorePage() {
     <AppShell>
       <div className="cinema-container pt-6 pb-10">
         <div
-          className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-6 border-b"
+          className="flex flex-col md:flex-row md:items-end justify-between gap-5 pb-7 border-b"
           style={{ borderColor: "var(--color-rule)" }}
         >
-          <div>
+          <div className="flex flex-col gap-3">
             <h1 style={{ fontSize: "var(--text-display)" }}>Catalogue</h1>
-            <p className="text-sm mt-1" style={{ color: "var(--color-ink-muted)" }}>
-              Explore {data?.total ?? "2,300"} films spanning Hollywood, Bollywood, and Tollywood.
+            <p
+              className="text-sm tracking-wide"
+              style={{ color: "var(--color-ink-muted)", opacity: 0.85 }}
+            >
+              {data?.total ? `${data.total.toLocaleString()} films` : "2,300 films"} · Hollywood,
+              Bollywood &amp; Tollywood
             </p>
           </div>
 

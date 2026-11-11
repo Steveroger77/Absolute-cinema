@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import gsap from "gsap";
@@ -70,20 +70,23 @@ function LazyGenreRow({
   subtitle,
   industry,
   userKey,
+  eager = false,
   onRegisterNode,
 }: {
   genre: string;
   subtitle: string;
   industry?: string;
   userKey: string | number;
+  eager?: boolean;
   onRegisterNode: (genre: string, el: HTMLDivElement | null) => void;
 }) {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(eager);
 
   useEffect(() => {
+    if (eager || visible) return;
     const el = sentinelRef.current;
-    if (!el || visible) return;
+    if (!el) return;
     const obs = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -95,7 +98,7 @@ function LazyGenreRow({
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [visible]);
+  }, [eager, visible]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["recs", "genre", genre, userKey, industry || "all"],
@@ -121,7 +124,12 @@ function LazyGenreRow({
     >
       {!visible || isLoading ? (
         <section className="cinema-container py-6">
-          <div className="skeleton-block h-8 w-44 mb-4" />
+          <div className="mb-4">
+            <h2 style={{ fontSize: "var(--text-section)" }}>{genre}</h2>
+            <p className="text-sm mt-1" style={{ color: "var(--color-ink-muted)" }}>
+              {subtitle}
+            </p>
+          </div>
           <div className="skeleton-block w-full h-80" />
         </section>
       ) : movies.length > 0 ? (
@@ -415,7 +423,8 @@ export function HomePage() {
       hasRatedFilms && becauseRes?.genre_order?.length
         ? becauseRes.genre_order
         : DEFAULT_GENRE_ORDER;
-    return src.slice(0, 8);
+    const sliced = src.slice(0, 8);
+    return sliced.includes("Sci-Fi") ? sliced : [...sliced.slice(0, 7), "Sci-Fi"];
   }, [hasRatedFilms, becauseRes?.genre_order]);
 
   // Smooth FLIP reorder when personalized genre row priority changes live
@@ -468,6 +477,22 @@ export function HomePage() {
       ? "Similar to the films you’ve rated — updates live with every star"
       : "Recommendations similar to your rated films";
 
+  const hasSciFiGenre = orderedGenres.includes("Sci-Fi");
+
+  const superheroSection = loadingSuperheroes ? (
+    <section className="cinema-container py-6">
+      <div className="skeleton-block h-8 w-52 mb-4" />
+      <div className="skeleton-block w-full h-80" />
+    </section>
+  ) : superheroMovies.length > 0 ? (
+    <PosterCarousel
+      title="Superheroes"
+      subtitle={superheroSubtitle}
+      movies={superheroMovies}
+      syncGlobalAmbient
+    />
+  ) : null;
+
   return (
     <AppShell activeIndustry={industry} onSelectIndustry={setIndustry}>
       {/* Hero spotlight */}
@@ -495,8 +520,8 @@ export function HomePage() {
             <div>
               <h2 style={{ fontSize: "1.35rem" }}>Tune your taste profile</h2>
               <p className="text-sm mt-1" style={{ color: "var(--color-ink-muted)" }}>
-                Choose your favorite industries and rate 5 titles so collaborative filtering locks
-                onto your voice.
+                Choose your favorite industries and rate films you know so collaborative filtering
+                locks onto your taste.
               </p>
             </div>
             <Link to="/onboarding" className="cinema-btn cinema-btn-primary shrink-0">
@@ -506,23 +531,7 @@ export function HomePage() {
         </section>
       )}
 
-      {/* Superheroes — full superhero collection across industries */}
-      {loadingSuperheroes ? (
-        <section className="cinema-container py-6">
-          <div className="skeleton-block h-8 w-52 mb-4" />
-          <div className="skeleton-block w-full h-80" />
-        </section>
-      ) : superheroMovies.length > 0 ? (
-        <PosterCarousel
-          title="Superheroes"
-          subtitle={superheroSubtitle}
-          movies={superheroMovies}
-          syncGlobalAmbient
-          priorityFirst
-        />
-      ) : null}
-
-      {/* Picked for you — only appears after the user rates at least one film */}
+      {/* Picked for you — first section once rated; hidden until user rates at least one film */}
       {hasRatedFilms &&
         (loadingRecs ? (
           <section className="cinema-container py-6">
@@ -535,6 +544,7 @@ export function HomePage() {
             subtitle={pickedSubtitle}
             movies={pickedMovies}
             syncGlobalAmbient
+            priorityFirst
           />
         ) : null)}
 
@@ -576,7 +586,7 @@ export function HomePage() {
         />
       ))}
 
-      {/* Personalized & adaptively ordered Industry shelves when viewing All Cinema */}
+      {/* Industry shelves — first section (starting from Hollywood) when viewing All Cinema without ratings */}
       {!industry &&
         industryOrder.map((indKey) => {
           const rec = industryRecsMap[indKey];
@@ -593,23 +603,29 @@ export function HomePage() {
               title={meta.title}
               subtitle={subtitle}
               movies={movies}
+              syncGlobalAmbient={indKey === "hollywood"}
+              priorityFirst={!hasRatedFilms && indKey === "hollywood"}
             />
           );
         })}
 
-      {/* Lazy-loaded genre carousels ordered strongest-affinity first */}
+      {/* Lazy-loaded genre carousels with Superheroes positioned right below Sci-Fi */}
       {orderedGenres.map((genreName) => (
-        <LazyGenreRow
-          key={genreName}
-          genre={genreName}
-          subtitle={
-            GENRE_SUBTITLES[genreName] ?? `Acclaimed ${genreName} cinema tuned to your taste`
-          }
-          industry={industry}
-          userKey={userKey}
-          onRegisterNode={registerGenreNode}
-        />
+        <Fragment key={genreName}>
+          <LazyGenreRow
+            genre={genreName}
+            subtitle={
+              GENRE_SUBTITLES[genreName] ?? `Acclaimed ${genreName} cinema tuned to your taste`
+            }
+            industry={industry}
+            userKey={userKey}
+            eager={genreName === "Sci-Fi"}
+            onRegisterNode={registerGenreNode}
+          />
+          {genreName === "Sci-Fi" && superheroSection}
+        </Fragment>
       ))}
+      {!hasSciFiGenre && superheroSection}
     </AppShell>
   );
 }

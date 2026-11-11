@@ -81,13 +81,16 @@ export function LibraryPage() {
     <AppShell>
       <div className="cinema-container pt-6 pb-12">
         <div
-          className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b"
+          className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 pb-7 border-b"
           style={{ borderColor: "var(--color-rule)" }}
         >
-          <div>
+          <div className="flex flex-col gap-3">
             <h1 style={{ fontSize: "var(--text-display)" }}>My Vault</h1>
-            <p className="text-sm mt-1" style={{ color: "var(--color-ink-muted)" }}>
-              Every rating sharpens your collaborative recommendation profile.
+            <p
+              className="text-sm tracking-wide"
+              style={{ color: "var(--color-ink-muted)", opacity: 0.85 }}
+            >
+              Your ratings &amp; saved watchlist
             </p>
           </div>
 
@@ -125,10 +128,11 @@ export function LibraryPage() {
           ) : ratings.length === 0 ? (
             <div className="py-16 text-center flex flex-col items-center gap-4">
               <p style={{ color: "var(--color-ink-muted)" }}>
-                You haven’t rated any films yet. Rate 5 films to activate personalized CF matches.
+                You haven’t rated any films yet. Search and rate films you’ve watched to unlock
+                personal recommendations.
               </p>
               <Link to="/onboarding" className="cinema-btn cinema-btn-primary">
-                Rate 5 starter films
+                Choose &amp; rate films
               </Link>
             </div>
           ) : (

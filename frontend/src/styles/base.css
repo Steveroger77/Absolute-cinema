@@ -66,13 +66,17 @@
   h4 {
     font-family: var(--font-display);
     font-weight: 600;
-    line-height: 1.06;
+    line-height: 1.08;
     letter-spacing: -0.02em;
     color: var(--color-ink);
     overflow-wrap: break-word;
     min-width: 0;
     text-wrap: balance;
     margin: 0;
+  }
+
+  h1 {
+    line-height: 1.16;
   }
 
   p {
