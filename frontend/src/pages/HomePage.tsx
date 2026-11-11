@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import gsap from "gsap";
 import { AppShell } from "../components/AppShell";
@@ -253,6 +253,7 @@ export function HomePage() {
   const { data: trending = [], isLoading: loadingTrending } = useQuery({
     queryKey: ["trending", industry || "all"],
     queryFn: () => api.getTrending(industry, 15),
+    placeholderData: keepPreviousData,
   });
 
   const { data: myRatings = [] } = useQuery({
@@ -267,17 +268,20 @@ export function HomePage() {
     queryKey: ["recs", "me", userKey, industry || "all"],
     queryFn: () => api.getRecommendationsMe({ k: 18, industry }),
     enabled: hasRatedFilms,
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[2] === userKey ? prev : undefined),
   });
 
   const { data: becauseRes } = useQuery({
     queryKey: ["because", userKey, industry || "all"],
     queryFn: () => api.getBecauseYouRated(industry, 3, 16),
     enabled: hasRatedFilms,
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === userKey ? prev : undefined),
   });
 
   const { data: superheroRes, isLoading: loadingSuperheroes } = useQuery({
     queryKey: ["superheroes", userKey, industry || "all"],
     queryFn: () => api.getSuperheroRecommendations(100, industry),
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === userKey ? prev : undefined),
   });
 
   const { data: hollyRec } = useQuery({

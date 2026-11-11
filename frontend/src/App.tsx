@@ -10,8 +10,8 @@ import { AuthProvider } from "./context/AuthContext";
 import { LenisProvider } from "./context/LenisProvider";
 import { TransitionProvider } from "./context/TransitionContext";
 import { prefersReducedMotion } from "./lib/tier";
+import { HomePage } from "./pages/HomePage";
 
-const HomePage = lazy(() => import("./pages/HomePage").then((m) => ({ default: m.HomePage })));
 const MovieDetailPage = lazy(() =>
   import("./pages/MovieDetailPage").then((m) => ({ default: m.MovieDetailPage }))
 );

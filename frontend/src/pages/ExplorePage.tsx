@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import gsap from "gsap";
 import { Star } from "lucide-react";
@@ -56,6 +56,7 @@ export function ExplorePage() {
         genre: genre || undefined,
         sort,
       }),
+    placeholderData: keepPreviousData,
   });
 
   const captureGridPositions = () => {

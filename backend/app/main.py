@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -47,6 +48,10 @@ async def lifespan(_app: FastAPI):
                 logger.error("Failed to load recommender artifact cleanly: %s", exc)
         else:
             logger.warning("No trained model artifact found in %s at startup.", artifacts_dir)
+        try:
+            recommender_service.warm_catalogue_cache(db)
+        except Exception as exc:
+            logger.warning("Skipping catalogue cache pre-warm at startup: %s", exc)
         if not settings.google_client_id:
             logger.warning(
                 "GOOGLE_CLIENT_ID is not configured; Google Sign-In (/api/auth/google) is disabled."
@@ -71,6 +76,7 @@ app = FastAPI(
 )
 
 app.state.limiter = limiter
+app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(
     CORSMiddleware,

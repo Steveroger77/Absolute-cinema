@@ -32,21 +32,18 @@ def get_my_ratings(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[RatingOut]:
-    rows = db.execute(
-        select(Rating, Movie)
-        .join(Movie, Rating.movie_id == Movie.id)
-        .where(Rating.user_id == user.id)
-        .order_by(desc(Rating.rated_at))
-    ).all()
+    rows = db.scalars(select(Rating).where(Rating.user_id == user.id).order_by(desc(Rating.rated_at))).all()
+    summaries = recommender_service.get_movie_summaries([r.movie_id for r in rows], db)
     return [
         RatingOut(
             movie_id=rating.movie_id,
             rating=rating.rating,
             source=rating.source,
             rated_at=rating.rated_at,
-            movie=movie_to_summary(movie),
+            movie=summaries[rating.movie_id],
         )
-        for rating, movie in rows
+        for rating in rows
+        if rating.movie_id in summaries
     ]
 
 
@@ -85,6 +82,7 @@ def upsert_rating(
     db.commit()
     db.refresh(record)
     db.refresh(movie)
+    recommender_service.update_movie_summary(db, movie)
     recommender_service.invalidate_user_cache(user.id)
 
     return RatingOut(
@@ -113,4 +111,7 @@ def delete_rating(
     if movie is not None:
         _recompute_movie_aggregates(movie, db)
     db.commit()
+    if movie is not None:
+        db.refresh(movie)
+        recommender_service.update_movie_summary(db, movie)
     recommender_service.invalidate_user_cache(user.id)

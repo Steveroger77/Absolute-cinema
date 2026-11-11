@@ -11,12 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.deps import get_optional_user
-from app.models import Movie, Rating, User
-from app.routers.movies import movie_to_summary
+from app.models import Rating, User
 from app.schemas.api import (
     BecauseRatedResponse,
     BecauseRatedRowOut,
     ExplainMovieResponse,
+    MovieSummary,
     RecommendationReason,
     RecommendationsResponse,
     RecommendedMovieOut,
@@ -59,14 +59,11 @@ def _load_user_context(
     return user.id, history, timestamps, pref_genres, pref_industries
 
 
-def _fetch_movie_map(mids: list[int], db: Session) -> dict[int, Movie]:
-    if not mids:
-        return {}
-    movies = db.scalars(select(Movie).where(Movie.id.in_(set(mids)))).all()
-    return {m.id: m for m in movies}
+def _fetch_movie_map(mids: list[int], db: Session) -> dict[int, MovieSummary]:
+    return recommender_service.get_movie_summaries(mids, db)
 
 
-def _hydrate_with_map(items: list[Any], by_id: dict[int, Movie]) -> list[RecommendedMovieOut]:
+def _hydrate_with_map(items: list[Any], by_id: dict[int, MovieSummary]) -> list[RecommendedMovieOut]:
     out: list[RecommendedMovieOut] = []
     for it in items:
         m = by_id.get(it.movie_id)
@@ -74,7 +71,7 @@ def _hydrate_with_map(items: list[Any], by_id: dict[int, Movie]) -> list[Recomme
             continue
         out.append(
             RecommendedMovieOut(
-                movie=movie_to_summary(m),
+                movie=m,
                 score=it.score,
                 source=it.source,
                 reasons=[RecommendationReason(**r) for r in it.reasons],
@@ -192,7 +189,7 @@ def recommend_because_you_rated(
         if rec_items:
             hydrated_rows.append(
                 BecauseRatedRowOut(
-                    anchor=movie_to_summary(anchor_movie),
+                    anchor=anchor_movie,
                     user_rating=rating_val,
                     items=rec_items,
                 )
@@ -213,8 +210,7 @@ def explain_movie(
     db: Session = Depends(get_db),
 ) -> ExplainMovieResponse:
     _require_model()
-    movie = db.get(Movie, movie_id)
-    if movie is None:
+    if movie_id not in _fetch_movie_map([movie_id], db):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found")
     if user is None:
         return ExplainMovieResponse(movie_id=movie_id, reasons=[])
@@ -242,8 +238,7 @@ def recommend_similar(
     db: Session = Depends(get_db),
 ) -> RecommendationsResponse:
     _require_model()
-    movie = db.get(Movie, movie_id)
-    if movie is None:
+    if movie_id not in _fetch_movie_map([movie_id], db):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found")
 
     recs = recommender_service.similar_movies(movie_id=movie_id, k=k)

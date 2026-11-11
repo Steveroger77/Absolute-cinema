@@ -12,6 +12,7 @@ from app.models import Movie, User, Watchlist
 from app.routers.movies import movie_to_summary
 from app.schemas.api import WatchlistItemOut
 from app.security import limiter
+from app.services.recommender_service import recommender_service
 
 router = APIRouter(prefix="/api/watchlist", tags=["watchlist"])
 
@@ -21,19 +22,18 @@ def list_watchlist(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[WatchlistItemOut]:
-    rows = db.execute(
-        select(Watchlist, Movie)
-        .join(Movie, Watchlist.movie_id == Movie.id)
-        .where(Watchlist.user_id == user.id)
-        .order_by(desc(Watchlist.added_at))
+    rows = db.scalars(
+        select(Watchlist).where(Watchlist.user_id == user.id).order_by(desc(Watchlist.added_at))
     ).all()
+    summaries = recommender_service.get_movie_summaries([w.movie_id for w in rows], db)
     return [
         WatchlistItemOut(
             movie_id=entry.movie_id,
             added_at=entry.added_at,
-            movie=movie_to_summary(movie),
+            movie=summaries[entry.movie_id],
         )
-        for entry, movie in rows
+        for entry in rows
+        if entry.movie_id in summaries
     ]
 
 

@@ -14,42 +14,23 @@ from app.deps import get_optional_user
 from app.models import Genre, Movie, MovieGenre, Rating, User, Watchlist
 from app.schemas.api import GenreOut, MovieDetail, MoviePageResponse, MovieSummary
 from app.services.poster_svg import render_fallback_poster_svg
-from app.services.recommender_service import recommender_service
+from app.services.recommender_service import (
+    SUMMARY_LOAD_OPTIONS,
+    build_movie_summary,
+    recommender_service,
+)
 
 router = APIRouter(prefix="/api", tags=["movies"])
 
 
 def movie_to_summary(movie: Movie) -> MovieSummary:
-    genres = [g.strip() for g in (movie.genres_csv or "").split("|") if g.strip()]
-    return MovieSummary(
-        id=movie.id,
-        title=movie.title,
-        year=movie.year,
-        industry=movie.industry,
-        language=movie.language,
-        poster_url=movie.poster_url,
-        backdrop_url=movie.backdrop_url,
-        runtime=movie.runtime,
-        tmdb_rating=movie.tmdb_rating,
-        genres=genres,
-        dominant_color=movie.dominant_color,
-        accent_color=movie.accent_color,
-        shadow_color=movie.shadow_color,
-        color_luminance=movie.color_luminance,
-        rating_avg=round(float(movie.rating_avg or 0.0), 2),
-        rating_count=int(movie.rating_count or 0),
-    )
+    return build_movie_summary(movie)
 
 
 @router.get("/genres", response_model=list[GenreOut])
-def list_genres(db: Session = Depends(get_db)) -> list[GenreOut]:
-    rows = db.execute(
-        select(Genre.id, Genre.name, Genre.slug, func.count(MovieGenre.movie_id))
-        .outerjoin(MovieGenre, Genre.id == MovieGenre.genre_id)
-        .group_by(Genre.id)
-        .order_by(desc(func.count(MovieGenre.movie_id)), Genre.name)
-    ).all()
-    return [GenreOut(id=r[0], name=r[1], slug=r[2], movie_count=int(r[3])) for r in rows]
+def list_genres(response: Response, db: Session = Depends(get_db)) -> list[GenreOut]:
+    response.headers["Cache-Control"] = "public, max-age=300"
+    return recommender_service.get_cached_genres(db)
 
 
 @router.get("/movies", response_model=MoviePageResponse)
@@ -63,7 +44,7 @@ def list_movies(
     sort: str = Query(default="popular", pattern="^(popular|rating|year|title)$"),
     db: Session = Depends(get_db),
 ) -> MoviePageResponse:
-    stmt = select(Movie)
+    stmt = select(Movie).options(*SUMMARY_LOAD_OPTIONS)
     count_stmt = select(func.count(Movie.id))
 
     if genre:
@@ -118,11 +99,10 @@ def trending_movies(
     cache_key = f"trending:{industry or 'all'}:{limit}"
     cached_ids = recommender_service.get_cached_trending_ids(cache_key)
     if cached_ids:
-        movies = db.scalars(select(Movie).where(Movie.id.in_(cached_ids))).all()
-        by_id = {m.id: m for m in movies}
-        return [movie_to_summary(by_id[mid]) for mid in cached_ids if mid in by_id]
+        by_id = recommender_service.get_movie_summaries(cached_ids, db)
+        return [by_id[mid] for mid in cached_ids if mid in by_id]
 
-    stmt = select(Movie).where(Movie.rating_count >= 5)
+    stmt = select(Movie).options(*SUMMARY_LOAD_OPTIONS).where(Movie.rating_count >= 5)
     if industry:
         stmt = stmt.where(func.lower(Movie.industry) == industry.strip().lower())
 
@@ -147,6 +127,7 @@ def trending_movies(
             if len(by_ind[ind]) < 5:
                 extra = db.scalars(
                     select(Movie)
+                    .options(*SUMMARY_LOAD_OPTIONS)
                     .where(Movie.industry == ind, Movie.poster_url.is_not(None))
                     .order_by(desc(Movie.rating_count), desc(Movie.rating_avg))
                     .limit(8)
@@ -181,9 +162,11 @@ def search_movies(
         return []
     q_escaped = query_str.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     like_pat = f"%{q_escaped}%"
-    direct = list(
-        db.scalars(
+    direct = [
+        movie_to_summary(m)
+        for m in db.scalars(
             select(Movie)
+            .options(*SUMMARY_LOAD_OPTIONS)
             .where(
                 or_(
                     Movie.title.ilike(like_pat, escape="\\"),
@@ -195,15 +178,15 @@ def search_movies(
             .order_by(desc(Movie.rating_count), desc(Movie.rating_avg))
             .limit(limit)
         ).all()
-    )
+    ]
 
     if len(direct) >= limit:
-        return [movie_to_summary(m) for m in direct]
+        return direct
 
-    # Typo-tolerant fallback via lightweight fuzzy matching across indexed title/director tuples
+    # Typo-tolerant fallback via lightweight fuzzy matching across cached title tuples
     seen_ids = {m.id for m in direct}
     q_low = query_str.lower()
-    all_rows = db.execute(select(Movie.id, Movie.title, Movie.rating_count)).all()
+    all_rows = recommender_service.get_title_index(db)
     scored: list[tuple[float, int]] = []
     for mid, title, rcount in all_rows:
         if mid in seen_ids:
@@ -217,10 +200,9 @@ def search_movies(
     scored.sort(key=lambda x: x[0], reverse=True)
     extra_ids = [mid for _, mid in scored[: max(0, limit - len(direct))]]
     if extra_ids:
-        extras = db.scalars(select(Movie).where(Movie.id.in_(extra_ids))).all()
-        extra_map = {m.id: m for m in extras}
+        extra_map = recommender_service.get_movie_summaries(extra_ids, db)
         direct.extend([extra_map[mid] for mid in extra_ids if mid in extra_map])
-    return [movie_to_summary(m) for m in direct[:limit]]
+    return direct[:limit]
 
 
 @router.get("/movies/{movie_id}", response_model=MovieDetail)

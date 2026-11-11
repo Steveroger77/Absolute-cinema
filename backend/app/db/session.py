@@ -25,7 +25,8 @@ def build_engine(database_url: str | None = None) -> Engine:
     else:
         kwargs["pool_size"] = 10
         kwargs["max_overflow"] = 20
-        kwargs["pool_recycle"] = 1800
+        kwargs["pool_recycle"] = 300
+        kwargs["connect_args"] = {"connect_timeout": 10}
 
     eng = create_engine(url, **kwargs)
     if url.startswith("sqlite"):

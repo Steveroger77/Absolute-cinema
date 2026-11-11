@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { Bookmark, Star, Trash2 } from "lucide-react";
+import { Bookmark, Check, Minus, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { AppShell } from "../components/AppShell";
 import { HoverPosterCard } from "../components/HoverPosterCard";
 import { StarRating } from "../components/StarRating";
@@ -10,9 +10,11 @@ import { useAuth } from "../context/AuthContext";
 import { useMovieTransition } from "../context/TransitionContext";
 import { api } from "../lib/api";
 import { invalidateRecommendationQueries } from "../lib/queryInvalidation";
+import type { UserRatingItem } from "../types/cinema";
 
 export function LibraryPage() {
   const [tab, setTab] = useState<"ratings" | "watchlist">("ratings");
+  const [editingMovieId, setEditingMovieId] = useState<number | null>(null);
   const { user, loading: authLoading } = useAuth();
   const { notify } = useToast();
   const { openMovie, prefetchMovie, captureSourceRect } = useMovieTransition();
@@ -41,18 +43,55 @@ export function LibraryPage() {
   const reRateMutation = useMutation({
     mutationFn: ({ movieId, rating }: { movieId: number; rating: number }) =>
       api.upsertRating(movieId, rating),
+    onMutate: async ({ movieId, rating }) => {
+      const rKey = ["my-ratings", userKey];
+      await queryClient.cancelQueries({ queryKey: rKey });
+      const prev = queryClient.getQueryData<UserRatingItem[]>(rKey);
+      if (prev) {
+        queryClient.setQueryData(
+          rKey,
+          prev.map((r) => (r.movie_id === movieId ? { ...r, rating } : r))
+        );
+      }
+      return { prev, rKey };
+    },
     onSuccess: (_data, vars) => {
+      notify(`Updated rating to ${vars.rating.toFixed(1)} stars`, "info");
+    },
+    onError: (e: Error, _vars, ctx) => {
+      if (ctx?.prev !== undefined) queryClient.setQueryData(ctx.rKey, ctx.prev);
+      notify(e.message, "error");
+    },
+    onSettled: (_data, _err, vars) => {
       invalidateRecommendationQueries(queryClient, vars.movieId);
     },
-    onError: (e: Error) => notify(e.message, "error"),
   });
 
   const removeRatingMutation = useMutation({
     mutationFn: (movieId: number) => api.deleteRating(movieId),
-    onSuccess: (_data, movieId) => {
+    onMutate: async (movieId) => {
+      const rKey = ["my-ratings", userKey];
+      await queryClient.cancelQueries({ queryKey: rKey });
+      const prev = queryClient.getQueryData<UserRatingItem[]>(rKey);
+      if (prev) {
+        queryClient.setQueryData(
+          rKey,
+          prev.filter((r) => r.movie_id !== movieId)
+        );
+      }
+      if (editingMovieId === movieId) setEditingMovieId(null);
+      return { prev, rKey };
+    },
+    onSuccess: () => {
+      notify("Rating removed", "info");
+    },
+    onError: (e: Error, _vars, ctx) => {
+      if (ctx?.prev !== undefined) queryClient.setQueryData(ctx.rKey, ctx.prev);
+      notify(e.message, "error");
+    },
+    onSettled: (_data, _err, movieId) => {
       invalidateRecommendationQueries(queryClient, movieId);
     },
-    onError: (e: Error) => notify(e.message, "error"),
   });
 
   const removeWatchMutation = useMutation({
@@ -94,27 +133,32 @@ export function LibraryPage() {
             </p>
           </div>
 
-          <div role="tablist" aria-label="Library sections" className="flex items-center gap-2">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "ratings"}
-              onClick={() => setTab("ratings")}
-              className={`cinema-btn ${tab === "ratings" ? "cinema-btn-selected" : "cinema-btn-secondary"}`}
-            >
-              <Star size={16} aria-hidden="true" />
-              Ratings ({ratings.length})
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "watchlist"}
-              onClick={() => setTab("watchlist")}
-              className={`cinema-btn ${tab === "watchlist" ? "cinema-btn-selected" : "cinema-btn-secondary"}`}
-            >
-              <Bookmark size={16} aria-hidden="true" />
-              Watchlist ({watchlist.length})
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div role="tablist" aria-label="Library sections" className="flex items-center gap-2">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "ratings"}
+                onClick={() => setTab("ratings")}
+                className={`cinema-btn ${tab === "ratings" ? "cinema-btn-selected" : "cinema-btn-secondary"}`}
+              >
+                <Star size={16} aria-hidden="true" />
+                Ratings ({ratings.length})
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "watchlist"}
+                onClick={() => setTab("watchlist")}
+                className={`cinema-btn ${tab === "watchlist" ? "cinema-btn-selected" : "cinema-btn-secondary"}`}
+              >
+                <Bookmark size={16} aria-hidden="true" />
+                Watchlist ({watchlist.length})
+              </button>
+            </div>
+            <Link to="/onboarding" className="cinema-btn cinema-btn-ghost text-sm">
+              + Rate films
+            </Link>
           </div>
         </div>
 
@@ -137,60 +181,157 @@ export function LibraryPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-              {ratings.map((item) => (
-                <div
-                  key={item.movie_id}
-                  className="flex items-center gap-4 p-4 rounded-2xl border"
-                  style={{
-                    backgroundColor: "var(--color-paper-2)",
-                    borderColor: "var(--color-rule)",
-                  }}
-                >
-                  <HoverPosterCard
-                    movie={item.movie}
-                    lift={4}
-                    scale={1.04}
-                    maxParallax={4}
-                    className="shrink-0"
-                    style={{ width: 64 }}
-                    ariaLabel={`View ${item.movie.title}`}
-                    onPrefetch={() => prefetchMovie(item.movie_id)}
-                    onPointerDownCaptureRect={(el) => {
-                      preCapturedRectRef.current = captureSourceRect(el);
+              {ratings.map((item) => {
+                const isEditing = editingMovieId === item.movie_id;
+                return (
+                  <div
+                    key={item.movie_id}
+                    className="flex flex-col gap-3 p-4 rounded-2xl border transition-colors"
+                    style={{
+                      backgroundColor: "var(--color-paper-2)",
+                      borderColor: isEditing ? "var(--glass-accent-border)" : "var(--color-rule)",
                     }}
-                    onClick={(e) => {
-                      const frame =
-                        e.currentTarget.querySelector<HTMLElement>("[data-poster-frame]") ??
-                        e.currentTarget;
-                      const rect = preCapturedRectRef.current ?? captureSourceRect(frame);
-                      preCapturedRectRef.current = null;
-                      openMovie(item.movie, frame, { preCapturedRect: rect });
-                    }}
-                  />
-                  <div className="min-w-0 flex-1 flex flex-col gap-2">
-                    <Link
-                      to={`/movie/${item.movie_id}`}
-                      className="font-semibold truncate hover:text-[var(--soft-amber)]"
-                      style={{ fontFamily: "var(--font-display)", fontSize: "1.15rem" }}
-                    >
-                      {item.movie.title}
-                    </Link>
-                    <StarRating
-                      size={18}
-                      value={item.rating}
-                      onChange={(r) => reRateMutation.mutate({ movieId: item.movie_id, rating: r })}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    aria-label={`Delete rating for ${item.movie.title}`}
-                    onClick={() => removeRatingMutation.mutate(item.movie_id)}
-                    className="cinema-btn cinema-btn-ghost px-2.5"
                   >
-                    <Trash2 size={16} aria-hidden="true" />
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-center gap-4">
+                      <HoverPosterCard
+                        movie={item.movie}
+                        lift={4}
+                        scale={1.04}
+                        maxParallax={4}
+                        className="shrink-0"
+                        style={{ width: 64 }}
+                        ariaLabel={`View ${item.movie.title}`}
+                        onPrefetch={() => prefetchMovie(item.movie_id)}
+                        onPointerDownCaptureRect={(el) => {
+                          preCapturedRectRef.current = captureSourceRect(el);
+                        }}
+                        onClick={(e) => {
+                          const frame =
+                            e.currentTarget.querySelector<HTMLElement>("[data-poster-frame]") ??
+                            e.currentTarget;
+                          const rect = preCapturedRectRef.current ?? captureSourceRect(frame);
+                          preCapturedRectRef.current = null;
+                          openMovie(item.movie, frame, { preCapturedRect: rect });
+                        }}
+                      />
+                      <div className="min-w-0 flex-1 flex flex-col gap-2">
+                        <Link
+                          to={`/movie/${item.movie_id}`}
+                          className="font-semibold truncate hover:text-[var(--soft-amber)]"
+                          style={{ fontFamily: "var(--font-display)", fontSize: "1.15rem" }}
+                        >
+                          {item.movie.title}
+                        </Link>
+                        <StarRating
+                          size={18}
+                          value={item.rating}
+                          onChange={(r) =>
+                            reRateMutation.mutate({ movieId: item.movie_id, rating: r })
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          aria-expanded={isEditing}
+                          aria-label={
+                            isEditing
+                              ? `Done editing rating for ${item.movie.title}`
+                              : `Edit rating for ${item.movie.title}`
+                          }
+                          onClick={() => setEditingMovieId(isEditing ? null : item.movie_id)}
+                          className={`cinema-btn px-2.5 py-1.5 text-xs ${
+                            isEditing ? "cinema-btn-selected" : "cinema-btn-secondary"
+                          }`}
+                        >
+                          {isEditing ? (
+                            <>
+                              <Check size={14} aria-hidden="true" />
+                              Done
+                            </>
+                          ) : (
+                            <>
+                              <Pencil size={14} aria-hidden="true" />
+                              Edit
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Delete rating for ${item.movie.title}`}
+                          onClick={() => removeRatingMutation.mutate(item.movie_id)}
+                          className="cinema-btn cinema-btn-ghost px-2.5"
+                        >
+                          <Trash2 size={16} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {isEditing && (
+                      <div
+                        className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t"
+                        style={{ borderColor: "var(--color-rule)" }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={item.rating <= 0.5}
+                            aria-label={`Decrease rating for ${item.movie.title}`}
+                            onClick={() =>
+                              reRateMutation.mutate({
+                                movieId: item.movie_id,
+                                rating: Math.max(0.5, item.rating - 0.5),
+                              })
+                            }
+                            className="cinema-btn cinema-btn-secondary px-2.5 py-1 text-xs"
+                          >
+                            <Minus size={13} aria-hidden="true" />
+                            0.5
+                          </button>
+                          <span
+                            className="tabular-figure text-sm font-medium px-2"
+                            style={{ color: "var(--color-accent)" }}
+                          >
+                            {item.rating.toFixed(1)} / 5.0
+                          </span>
+                          <button
+                            type="button"
+                            disabled={item.rating >= 5}
+                            aria-label={`Increase rating for ${item.movie.title}`}
+                            onClick={() =>
+                              reRateMutation.mutate({
+                                movieId: item.movie_id,
+                                rating: Math.min(5, item.rating + 0.5),
+                              })
+                            }
+                            className="cinema-btn cinema-btn-secondary px-2.5 py-1 text-xs"
+                          >
+                            <Plus size={13} aria-hidden="true" />
+                            0.5
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {[1, 2, 3, 4, 5].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() =>
+                                reRateMutation.mutate({ movieId: item.movie_id, rating: preset })
+                              }
+                              className={`cinema-btn px-2.5 py-1 text-xs tabular-figure ${
+                                item.rating === preset ? "cinema-btn-selected" : "cinema-btn-ghost"
+                              }`}
+                            >
+                              {preset}★
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )
         ) : loadingWatchlist ? (

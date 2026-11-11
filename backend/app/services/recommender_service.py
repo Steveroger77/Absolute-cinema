@@ -11,7 +11,8 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy import desc, func, select
+from sqlalchemy.orm import Session, load_only
 
 # Ensure project root is importable for `ml.src.loader` without importing training logic
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -21,11 +22,55 @@ if str(PROJECT_ROOT) not in sys.path:
 from ml.src.loader import RecommendationItem, RecommenderEngine, UserTasteProfile  # noqa: E402
 
 from app.config import get_settings  # noqa: E402
-from app.models import ModelVersion  # noqa: E402
+from app.models import Genre, ModelVersion, Movie, MovieGenre  # noqa: E402
+from app.schemas.api import GenreOut, MovieSummary  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 _MAX_USER_CACHE_ENTRIES = 512
+_MAX_BIND_CACHES = 8
+
+SUMMARY_COLUMNS = (
+    Movie.id,
+    Movie.title,
+    Movie.year,
+    Movie.industry,
+    Movie.language,
+    Movie.poster_url,
+    Movie.backdrop_url,
+    Movie.runtime,
+    Movie.tmdb_rating,
+    Movie.genres_csv,
+    Movie.dominant_color,
+    Movie.accent_color,
+    Movie.shadow_color,
+    Movie.color_luminance,
+    Movie.rating_avg,
+    Movie.rating_count,
+)
+SUMMARY_LOAD_OPTIONS = (load_only(*SUMMARY_COLUMNS),)
+
+
+def build_movie_summary(row: Any) -> MovieSummary:
+    genres = [g.strip() for g in (row.genres_csv or "").split("|") if g.strip()]
+    return MovieSummary(
+        id=int(row.id),
+        title=str(row.title),
+        year=row.year,
+        industry=str(row.industry),
+        language=str(row.language),
+        poster_url=row.poster_url,
+        backdrop_url=row.backdrop_url,
+        runtime=row.runtime,
+        tmdb_rating=row.tmdb_rating,
+        genres=genres,
+        dominant_color=str(row.dominant_color),
+        accent_color=str(row.accent_color),
+        shadow_color=str(row.shadow_color),
+        color_luminance=str(row.color_luminance),
+        rating_avg=round(float(row.rating_avg or 0.0), 2),
+        rating_count=int(row.rating_count or 0),
+    )
 
 
 class RecommenderService:
@@ -36,10 +81,14 @@ class RecommenderService:
         self._engine: RecommenderEngine | None = None
         self._metrics: dict[str, Any] = {}
         self._trending_cache: dict[str, tuple[float, list[int]]] = {}
-        self._cache_ttl_seconds = 60.0
+        self._cache_ttl_seconds = 300.0
         # Per-user monotonically bumped version + bounded LRU cache strictly keyed by (user_id, version, ...)
         self._user_versions: dict[int, int] = {}
         self._user_rec_cache: OrderedDict[tuple[Any, ...], Any] = OrderedDict()
+        # Bind-keyed read-through caches so Postgres summary lookups stay 0-query on warm hits
+        self._movie_caches: OrderedDict[int, dict[int, MovieSummary]] = OrderedDict()
+        self._movie_full_loaded: set[int] = set()
+        self._genre_caches: OrderedDict[int, list[GenreOut]] = OrderedDict()
 
     @property
     def is_loaded(self) -> bool:
@@ -264,8 +313,8 @@ class RecommenderService:
 
     def similar_movies(self, movie_id: int, k: int = 12) -> list[RecommendationItem]:
         return self._run_with_cache(
-            None,
-            lambda _ver: None,
+            0,
+            lambda ver: (0, ver, "similar", movie_id, k),
             lambda engine: engine.similar_movies(movie_id=movie_id, k=k),
         )
 
@@ -381,10 +430,99 @@ class RecommenderService:
                 self._user_rec_cache.pop(k, None)
             self._trending_cache.clear()
 
+    def _bind_summary_map(self, db: Session) -> tuple[int, dict[int, MovieSummary]]:
+        bind_key = id(db.get_bind())
+        bind_map = self._movie_caches.get(bind_key)
+        if bind_map is None:
+            bind_map = {}
+            self._movie_caches[bind_key] = bind_map
+            while len(self._movie_caches) > _MAX_BIND_CACHES:
+                old_key, _ = self._movie_caches.popitem(last=False)
+                self._movie_full_loaded.discard(old_key)
+                self._genre_caches.pop(old_key, None)
+        else:
+            self._movie_caches.move_to_end(bind_key)
+        return bind_key, bind_map
+
+    def get_movie_summaries(self, movie_ids: list[int], db: Session) -> dict[int, MovieSummary]:
+        unique_ids = list(dict.fromkeys(int(m) for m in movie_ids))
+        if not unique_ids:
+            return {}
+        with self._lock:
+            _bind_key, bind_map = self._bind_summary_map(db)
+            missing = [mid for mid in unique_ids if mid not in bind_map]
+            cached = {mid: bind_map[mid] for mid in unique_ids if mid in bind_map}
+
+        if missing:
+            rows = db.execute(select(*SUMMARY_COLUMNS).where(Movie.id.in_(missing))).all()
+            fetched = {int(r.id): build_movie_summary(r) for r in rows}
+            if fetched:
+                with self._lock:
+                    _bk, current_map = self._bind_summary_map(db)
+                    current_map.update(fetched)
+            cached.update(fetched)
+        return cached
+
+    def update_movie_summary(self, db: Session, movie: Movie) -> None:
+        summary = build_movie_summary(movie)
+        with self._lock:
+            _bk, bind_map = self._bind_summary_map(db)
+            bind_map[summary.id] = summary
+
+    def get_title_index(self, db: Session) -> list[tuple[int, str, int]]:
+        bind_key = id(db.get_bind())
+        with self._lock:
+            if bind_key in self._movie_full_loaded and bind_key in self._movie_caches:
+                return [(m.id, m.title, m.rating_count) for m in self._movie_caches[bind_key].values()]
+        rows = db.execute(select(Movie.id, Movie.title, Movie.rating_count)).all()
+        return [(int(mid), str(title), int(rcount or 0)) for mid, title, rcount in rows]
+
+    def get_cached_genres(self, db: Session) -> list[GenreOut]:
+        bind_key = id(db.get_bind())
+        with self._lock:
+            cached = self._genre_caches.get(bind_key)
+            if cached is not None:
+                self._genre_caches.move_to_end(bind_key)
+                return cached
+        rows = db.execute(
+            select(Genre.id, Genre.name, Genre.slug, func.count(MovieGenre.movie_id))
+            .outerjoin(MovieGenre, Genre.id == MovieGenre.genre_id)
+            .group_by(Genre.id)
+            .order_by(desc(func.count(MovieGenre.movie_id)), Genre.name)
+        ).all()
+        genres = [GenreOut(id=int(r[0]), name=str(r[1]), slug=str(r[2]), movie_count=int(r[3])) for r in rows]
+        if genres:
+            with self._lock:
+                self._genre_caches[bind_key] = genres
+                while len(self._genre_caches) > _MAX_BIND_CACHES:
+                    self._genre_caches.popitem(last=False)
+        return genres
+
+    def warm_catalogue_cache(self, db: Session) -> None:
+        """Preload compact MovieSummary rows, genres, and public shelves at server startup."""
+        rows = db.execute(select(*SUMMARY_COLUMNS)).all()
+        if not rows:
+            return
+        summaries = {int(r.id): build_movie_summary(r) for r in rows}
+        with self._lock:
+            bind_key, bind_map = self._bind_summary_map(db)
+            bind_map.update(summaries)
+            self._movie_full_loaded.add(bind_key)
+        self.get_cached_genres(db)
+        if self._engine is not None:
+            for ind in ("hollywood", "bollywood", "tollywood"):
+                self.recommend_by_industry(ind, k=16)
+            self.recommend_by_genre("Sci-Fi", k=16)
+            self.recommend_superheroes(k=100)
+        logger.info("Warmed in-memory catalogue cache (%d movies)", len(summaries))
+
     def invalidate_cache(self) -> None:
         with self._lock:
             self._trending_cache.clear()
             self._user_rec_cache.clear()
+            self._movie_caches.clear()
+            self._movie_full_loaded.clear()
+            self._genre_caches.clear()
 
 
 recommender_service = RecommenderService()
