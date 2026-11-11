@@ -1,0 +1,54 @@
+# Python / ML caches & coverage
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+*.db
+*.db-*
+.venv/
+venv/
+
+# Raw downloaded datasets & ingestion caches (reproducible via ml/src/train.py)
+ml/data/raw/
+ml/data/posters/
+reference/
+ml/data/processed/color_cache.json
+ml/data/processed/enrichment_cache.json
+
+# Environment & local secrets
+.env
+.env.*
+!.env.example
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/tsconfig.tsbuildinfo
+
+# AI tooling, prompts, working scratch & OS files
+.agents/
+.agent/
+.claude/
+.gemini/
+.antigravity/
+.cursor/
+.windsurf/
+skills/
+.skills/
+skills-lock.json
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+brain/
+artifacts/
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

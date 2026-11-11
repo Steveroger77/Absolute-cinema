@@ -1,0 +1,130 @@
+/* Hallmark · shape: app screen · genre: atmospheric · theme: custom · surface: espresso · accent: amber · v2.0.0 */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 · weakest: R, pared back card borders and chrome to let poster ambience carry the canvas */
+
+:root {
+  /* Core palette from reference/palette.jpg */
+  --soft-amber: #ffd9a3;
+  --golden-hour: #ffb45c;
+  --sunset-orange: #f28b2c;
+  --burnt-sienna: #c35a1a;
+  --deep-amber: #7a2e0b;
+  --rich-espresso: #1a0d06;
+
+  /* Semantic color tokens */
+  --color-paper: oklch(14.5% 0.025 46);
+  --color-paper-2: oklch(18.5% 0.028 46);
+  --color-paper-3: oklch(23.5% 0.032 46);
+  --color-ink: oklch(93.5% 0.035 78);
+  --color-ink-muted: oklch(78% 0.042 74);
+  --color-ink-subtle: oklch(62% 0.036 68);
+  --color-accent: oklch(78.5% 0.142 66);
+  --color-accent-strong: oklch(71.5% 0.168 55);
+  --color-accent-ink: oklch(16% 0.028 44);
+  --color-focus: oklch(83% 0.165 72);
+  --color-rule: oklch(86% 0.055 76 / 0.12);
+  --color-rule-strong: oklch(86% 0.075 76 / 0.24);
+  --color-scrim: oklch(11% 0.022 42 / 0.86);
+  --color-scrim-soft: oklch(13% 0.024 44 / 0.62);
+  --color-glass-fill: oklch(21% 0.032 46 / 0.56);
+  --color-glass-fill-elevated: oklch(24% 0.036 46 / 0.72);
+  --color-glass-rim: oklch(90% 0.065 78 / 0.16);
+  --color-glass-rim-active: oklch(88% 0.115 74 / 0.34);
+  --color-danger: oklch(67% 0.185 28);
+  --color-success: oklch(76% 0.135 148);
+  --color-card-dim: oklch(12% 0.022 44 / 0.44);
+  --color-chip-bg: oklch(14% 0.024 44 / 0.72);
+  --color-shadow-deep: oklch(8% 0.018 40 / 0.58);
+
+  /* Translucent amber & neutral glass UI token system (Round 2) */
+  --glass-accent-bg: linear-gradient(180deg, rgb(255 180 92 / 0.28), rgb(242 139 44 / 0.14));
+  --glass-accent-bg-strong: linear-gradient(180deg, rgb(255 180 92 / 0.38), rgb(242 139 44 / 0.2));
+  --glass-accent-bg-hover: linear-gradient(180deg, rgb(255 204 134 / 0.46), rgb(242 139 44 / 0.28));
+  --glass-accent-border: rgb(255 217 163 / 0.35);
+  --glass-accent-border-strong: rgb(255 217 163 / 0.52);
+  --glass-accent-highlight: inset 0 1px 0 rgb(255 255 255 / 0.18);
+  --glass-accent-glow: 0 8px 30px -8px rgb(242 139 44 / 0.45);
+  --glass-accent-glow-hover: 0 12px 34px -6px rgb(242 139 44 / 0.58);
+
+  --glass-neutral-bg: oklch(26% 0.028 46 / 0.48);
+  --glass-neutral-bg-hover: oklch(32% 0.034 46 / 0.62);
+  --glass-neutral-border: rgb(255 217 163 / 0.16);
+  --glass-neutral-border-hover: rgb(255 217 163 / 0.32);
+
+  --glass-panel-bg: oklch(20% 0.032 46 / 0.88);
+  --glass-sheet-handle: rgb(255 217 163 / 0.32);
+  --glass-ripple: rgb(255 217 163 / 0.26);
+  --poster-hover-glow: radial-gradient(
+    ellipse at 50% 60%,
+    rgb(255 180 92 / 0.34) 0%,
+    rgb(242 139 44 / 0.14) 55%,
+    transparent 78%
+  );
+  --glass-specular-sheen: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgb(255 217 163 / 0.14) 50%,
+    transparent 65%
+  );
+
+  --focus-ring-glass: 0 0 0 2px rgb(255 217 163 / 0.55), 0 0 8px 2px rgb(255 180 92 / 0.35);
+
+  --hero-cta-bg: var(--glass-accent-bg-strong);
+  --hero-cta-border: var(--glass-accent-border);
+  --hero-cta-glow: var(--glass-accent-glow);
+
+  /* Adaptive ambient backdrop variables (updated smoothly in OKLCH by AmbientContext) */
+  --ambient-1: #7a2e0b;
+  --ambient-2: #c35a1a;
+  --ambient-3: #3d1606;
+  --ambient-opacity: 0.56;
+
+  /* Typography */
+  --font-display: "Libre Bodoni", Georgia, serif;
+  --font-body: "Albert Sans Variable", "Albert Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Fluid type scale */
+  --text-display: clamp(2.35rem, 4.4vw, 4.1rem);
+  --text-section: clamp(1.55rem, 2.3vw, 2.15rem);
+  --text-title: clamp(1.05rem, 1.35vw, 1.25rem);
+  --text-body: 1rem;
+  --text-meta: 0.875rem;
+  --text-chip: 0.75rem;
+
+  /* Spacing scale */
+  --space-3xs: 2px;
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+  --space-2xl: 64px;
+  --space-3xl: 96px;
+  --space-4xl: 144px;
+
+  /* Radii & Layout */
+  --radius-card: 16px;
+  --radius-panel: 22px;
+  --radius-shell: 26px;
+  --radius-pill: 999px;
+  --container-max: 1460px;
+
+  /* Z-index hierarchy */
+  --z-base: 1;
+  --z-raised: 10;
+  --z-card-near: 20;
+  --z-card-active: 30;
+  --z-sticky-nav: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-splash: 600;
+
+  /* Motion */
+  --ease-cinema: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-press: cubic-bezier(0.2, 0, 0, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-carousel: 720ms;
+  --dur-glow: 900ms;
+}

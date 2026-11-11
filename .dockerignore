@@ -1,0 +1,48 @@
+# Version control & local environments
+.git/
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+*.db
+*.db-journal
+
+# Python caches & tests
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Frontend build & packages (builder stage runs npm ci cleanly)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/tsconfig.tsbuildinfo
+
+# Raw datasets & ingestion caches (runtime uses ml/artifacts & processed CSVs only)
+ml/data/raw/
+ml/data/posters/
+ml/data/processed/color_cache.json
+ml/data/processed/enrichment_cache.json
+
+# Tooling, OS & documentation
+.agents/
+.agent/
+.claude/
+.gemini/
+.cursor/
+.windsurf/
+.vscode/
+.idea/
+skills-lock.json
+docs/screenshots/
+*.log
+.DS_Store
+Thumbs.db
+

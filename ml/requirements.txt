@@ -1,0 +1,9 @@
+pandas==2.2.3
+numpy==1.26.4
+scipy==1.15.2
+scikit-learn==1.7.2
+pillow==11.0.0
+pillow-avif-plugin==1.5.2
+joblib==1.4.2
+httpx==0.28.1
+

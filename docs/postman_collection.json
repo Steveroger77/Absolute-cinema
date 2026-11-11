@@ -1,0 +1,196 @@
+{
+  "info": {
+    "name": "ABSOLUTE CINEMA API",
+    "_postman_id": "7d3e34ed-550c-4d49-8ca3-5641f0743922",
+    "description": "Full REST collection for ABSOLUTE CINEMA (Auth, Catalogue, Ratings, Watchlist, Recommendations, Model/Admin).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000/api" },
+    { "key": "accessToken", "value": "" },
+    { "key": "movieId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Health & Model",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": { "method": "GET", "url": "{{baseUrl}}/health" }
+        },
+        {
+          "name": "Model Info & Metrics",
+          "request": { "method": "GET", "url": "{{baseUrl}}/model/info" }
+        },
+        {
+          "name": "Admin Reload Model",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/admin/model/reload"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"cinephile@example.com\",\n  \"username\": \"cinephile\",\n  \"password\": \"StrongPass123!\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/register"
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"cinephile@example.com\",\n  \"password\": \"StrongPass123!\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          }
+        },
+        {
+          "name": "Google OAuth Sign-In",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"credential\": \"<google_id_token_jwt>\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/google"
+          }
+        },
+        {
+          "name": "Check Session Status",
+          "request": { "method": "GET", "url": "{{baseUrl}}/auth/session" }
+        },
+        {
+          "name": "Refresh Session (Cookie)",
+          "request": { "method": "POST", "url": "{{baseUrl}}/auth/refresh" }
+        },
+        {
+          "name": "Current User",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/auth/me"
+          }
+        },
+        {
+          "name": "Save Onboarding Preferences",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"preferred_genres\": [\"Sci-Fi\", \"Thriller\", \"Drama\"],\n  \"preferred_industries\": [\"hollywood\", \"tollywood\"]\n}"
+            },
+            "url": "{{baseUrl}}/auth/onboarding"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalogue",
+      "item": [
+        {
+          "name": "List Movies",
+          "request": { "method": "GET", "url": "{{baseUrl}}/movies?page=1&page_size=24&industry=tollywood" }
+        },
+        {
+          "name": "Trending Movies",
+          "request": { "method": "GET", "url": "{{baseUrl}}/movies/trending?limit=16" }
+        },
+        {
+          "name": "Search Movies",
+          "request": { "method": "GET", "url": "{{baseUrl}}/movies/search?q=Inception" }
+        },
+        {
+          "name": "List Genres",
+          "request": { "method": "GET", "url": "{{baseUrl}}/genres" }
+        },
+        {
+          "name": "Movie Detail",
+          "request": { "method": "GET", "url": "{{baseUrl}}/movies/{{movieId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Ratings & Watchlist",
+      "item": [
+        {
+          "name": "Upsert Rating",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"rating\": 4.5\n}" },
+            "url": "{{baseUrl}}/ratings/{{movieId}}"
+          }
+        },
+        {
+          "name": "My Ratings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/ratings/me"
+          }
+        },
+        {
+          "name": "Add to Watchlist",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/watchlist/{{movieId}}"
+          }
+        },
+        {
+          "name": "My Watchlist",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/watchlist/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recommendations",
+      "item": [
+        {
+          "name": "Personalized Recommendations",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/recommendations/me?k=20"
+          }
+        },
+        {
+          "name": "Similar Movies",
+          "request": { "method": "GET", "url": "{{baseUrl}}/recommendations/similar/{{movieId}}?k=12" }
+        },
+        {
+          "name": "Genre Recommendations",
+          "request": { "method": "GET", "url": "{{baseUrl}}/recommendations/genre/Action?k=20" }
+        }
+      ]
+    }
+  ]
+}
+
