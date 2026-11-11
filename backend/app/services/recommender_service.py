@@ -323,6 +323,43 @@ class RecommenderService:
             lambda engine: engine.recommend_by_industry(industry=industry, k=k),
         )
 
+    def recommend_superheroes(
+        self,
+        k: int = 100,
+        industry: str | None = None,
+        user_id: int = 0,
+        user_history: dict[int, float] | None = None,
+        user_timestamps: dict[int, float] | None = None,
+        preferred_genres: list[str] | None = None,
+        preferred_industries: list[str] | None = None,
+    ) -> list[RecommendationItem]:
+        use_cache = user_id > 0 or not (user_history or preferred_genres or preferred_industries)
+        return self._run_with_cache(
+            user_id if use_cache else None,
+            lambda ver: (
+                (
+                    user_id,
+                    ver,
+                    "superheroes",
+                    k,
+                    industry or "",
+                    tuple(preferred_genres or ()),
+                    tuple(preferred_industries or ()),
+                )
+                if use_cache
+                else None
+            ),
+            lambda engine: engine.recommend_superheroes(
+                user_id=user_id,
+                user_history=user_history,
+                k=k,
+                industry=industry,
+                preferred_genres=preferred_genres,
+                preferred_industries=preferred_industries,
+                user_timestamps=user_timestamps,
+            ),
+        )
+
     def get_cached_trending_ids(self, key: str) -> list[int] | None:
         entry = self._trending_cache.get(key)
         if not entry:

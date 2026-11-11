@@ -625,6 +625,28 @@ def test_live_recommendation_personalization_and_isolation(client: TestClient) -
     recs_a2 = client.get("/api/recommendations/me?k=15", headers=h_a).json()
     assert recs_a2["items"]
 
+    # Superheroes shelf returns curated hero films & stays populated (never drops rated heroes)
+    heroes_guest = client.get("/api/recommendations/superheroes?k=100").json()
+    assert heroes_guest["strategy"] == "superhero_collection"
+    assert len(heroes_guest["items"]) >= 5
+    dk_item = next(it["movie"] for it in heroes_guest["items"] if it["movie"]["title"] == "The Dark Knight")
+    heroes_a = client.get("/api/recommendations/superheroes?k=100", headers=h_a).json()
+    assert heroes_a["strategy"] == "personalized_superheroes"
+    assert any(it["movie"]["id"] == dk_item["id"] for it in heroes_a["items"])
+
+    # Single-rating similarity: rating The Dark Knight 5★ places close superhero/action picks up top
+    reg_c = client.post(
+        "/api/auth/register",
+        json={"email": "herofan@cinema-app.org", "username": "herofan", "password": "CinemaPassword123!"},
+    )
+    assert reg_c.status_code == 201
+    h_c = {"Authorization": f"Bearer {reg_c.json()['access_token']}"}
+    assert client.put(f"/api/ratings/{dk_item['id']}", json={"rating": 5.0}, headers=h_c).status_code == 200
+    recs_c = client.get("/api/recommendations/me?k=20", headers=h_c).json()
+    assert recs_c["strategy"] == "personalized_hybrid_cf"
+    top_c = {it["movie"]["title"] for it in recs_c["items"]}
+    assert top_c & {"The Dark Knight Rises", "Batman Begins", "Inception", "Spider-Man", "The Avengers"}
+
     # Privacy & object-level isolation checks:
     # 1. Watchlist & ratings owned by A are invisible to B even if A passes query/guessed IDs
     wl_target = scifi_movies[3]["id"]

@@ -66,6 +66,7 @@ All routes below derive identity exclusively from the verified JWT (`user.id`). 
 | `GET` | `/api/recommendations/me` | Optional Bearer | Live hybrid CF + content + taste picks (cold-start blended `<5` ratings; excludes rated items). |
 | `GET` | `/api/recommendations/genre/{genre}` | Optional Bearer | Genre shelf ranked by caller's personal score (or Bayesian prior for guests). |
 | `GET` | `/api/recommendations/industry/{industry}` | Optional Bearer | Industry shelf (`hollywood`/`bollywood`/`tollywood`) ranked for caller or guest prior. |
+| `GET` | `/api/recommendations/superheroes` | Optional Bearer | Complete superhero film collection across industries (Bayesian acclaim for guests; personalized ranking when rated). |
 | `GET` | `/api/recommendations/profile` | Optional Bearer | Mean-centered, recency-weighted genre and industry affinity ordering for the caller. |
 | `GET` | `/api/recommendations/because` | Optional Bearer | Top `1–3` recently high-rated anchor films mapped to nearest-neighbor carousel rows + row order. |
 | `GET` | `/api/recommendations/explain/{movie_id}` | Optional Bearer | Returns top `2–3` positively rated driver films explaining why the target film aligns. |

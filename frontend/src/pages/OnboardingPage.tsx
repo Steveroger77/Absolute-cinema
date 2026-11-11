@@ -9,6 +9,7 @@ import { useToast } from "../components/ToastProvider";
 import { useAuth } from "../context/AuthContext";
 import { useMovieTransition } from "../context/TransitionContext";
 import { api } from "../lib/api";
+import { invalidateRecommendationQueries } from "../lib/queryInvalidation";
 import type { Industry } from "../types/cinema";
 
 const ONBOARDING_GENRES = [
@@ -90,10 +91,8 @@ export function OnboardingPage() {
   const rateMutation = useMutation({
     mutationFn: ({ movieId, rating }: { movieId: number; rating: number }) =>
       api.upsertRating(movieId, rating),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-ratings"] });
-      queryClient.invalidateQueries({ queryKey: ["recs"] });
-      queryClient.invalidateQueries({ queryKey: ["because"] });
+    onSuccess: (_data, vars) => {
+      invalidateRecommendationQueries(queryClient, vars.movieId);
     },
     onError: (e: Error) => notify(e.message, "error"),
   });

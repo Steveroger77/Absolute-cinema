@@ -9,6 +9,7 @@ import { useToast } from "../components/ToastProvider";
 import { useAuth } from "../context/AuthContext";
 import { useMovieTransition } from "../context/TransitionContext";
 import { api } from "../lib/api";
+import { invalidateRecommendationQueries } from "../lib/queryInvalidation";
 
 export function LibraryPage() {
   const [tab, setTab] = useState<"ratings" | "watchlist">("ratings");
@@ -40,20 +41,16 @@ export function LibraryPage() {
   const reRateMutation = useMutation({
     mutationFn: ({ movieId, rating }: { movieId: number; rating: number }) =>
       api.upsertRating(movieId, rating),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-ratings"] });
-      queryClient.invalidateQueries({ queryKey: ["recs"] });
-      queryClient.invalidateQueries({ queryKey: ["because"] });
+    onSuccess: (_data, vars) => {
+      invalidateRecommendationQueries(queryClient, vars.movieId);
     },
     onError: (e: Error) => notify(e.message, "error"),
   });
 
   const removeRatingMutation = useMutation({
     mutationFn: (movieId: number) => api.deleteRating(movieId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-ratings"] });
-      queryClient.invalidateQueries({ queryKey: ["recs"] });
-      queryClient.invalidateQueries({ queryKey: ["because"] });
+    onSuccess: (_data, movieId) => {
+      invalidateRecommendationQueries(queryClient, movieId);
     },
     onError: (e: Error) => notify(e.message, "error"),
   });

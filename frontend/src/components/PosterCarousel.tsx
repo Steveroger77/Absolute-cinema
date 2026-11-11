@@ -349,6 +349,7 @@ export function PosterCarousel({
         const d = wrapOffset(i - floatIdx, count);
         if (Math.abs(d) > 3.5) {
           el.style.opacity = "0";
+          el.style.visibility = "hidden";
           el.style.pointerEvents = "none";
           continue;
         }
@@ -357,6 +358,7 @@ export function PosterCarousel({
           1
         )}px, 0) scale(${m.scale.toFixed(4)})`;
         el.style.opacity = m.opacity.toFixed(3);
+        el.style.visibility = "visible";
         el.style.zIndex = hoverId === i ? "35" : String(m.zIndex);
         el.style.pointerEvents = m.opacity > 0.08 ? "auto" : "none";
 
@@ -445,7 +447,13 @@ export function PosterCarousel({
   useLayoutEffect(() => {
     const prev = prevMoviesSigRef.current;
     prevMoviesSigRef.current = moviesSig;
-    if (prev === null || prev === moviesSig || prefersReducedMotion()) return;
+    if (prev === null || prev === moviesSig) return;
+    targetFloatRef.current = 0;
+    floatPosRef.current = 0;
+    floatVelRef.current = 0;
+    setActiveIndex(0);
+    applyTransforms(0);
+    if (prefersReducedMotion()) return;
     const stage = stageRef.current;
     if (!stage) return;
     const layers = Array.from(stage.querySelectorAll<HTMLElement>(".poster-media-layer"));
@@ -465,7 +473,7 @@ export function PosterCarousel({
       );
     }, stage);
     return () => ctx.revert();
-  }, [moviesSig]);
+  }, [applyTransforms, moviesSig]);
 
   useEffect(() => {
     if (!activeMovie) return;

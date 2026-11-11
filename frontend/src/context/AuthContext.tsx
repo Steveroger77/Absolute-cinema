@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, setAccessToken } from "../lib/api";
+import { invalidateRecommendationQueries } from "../lib/queryInvalidation";
 import { clearUserBrowserState } from "../lib/sessionCleanup";
 import type { Industry, User } from "../types/cinema";
 
@@ -121,8 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         preferred_industries: industries,
       });
       setUser(updated);
-      await queryClient.invalidateQueries({ queryKey: ["recs"] });
-      await queryClient.invalidateQueries({ queryKey: ["because"] });
+      invalidateRecommendationQueries(queryClient);
       return updated;
     },
     [queryClient]

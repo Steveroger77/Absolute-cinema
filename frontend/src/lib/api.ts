@@ -20,22 +20,6 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) || "/
 let accessToken: string | null = null;
 let refreshPromise: Promise<AuthResponse | null> | null = null;
 
-// Render free-tier cold-start wake telemetry
-const wakeListeners = new Set<(waking: boolean) => void>();
-let pendingSlowRequests = 0;
-
-function emitWakeState(waking: boolean): void {
-  wakeListeners.forEach((cb) => cb(waking));
-}
-
-export function subscribeServerWake(cb: (waking: boolean) => void): () => void {
-  wakeListeners.add(cb);
-  cb(pendingSlowRequests > 0);
-  return () => {
-    wakeListeners.delete(cb);
-  };
-}
-
 export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
@@ -97,49 +81,24 @@ async function fetchWithColdStartRetry(
 ): Promise<Response> {
   const isSafeRetry = method.toUpperCase() === "GET" || url.endsWith("/auth/session");
   const maxAttempts = isSafeRetry ? 4 : 2;
-  let slowMarked = false;
-  const slowTimer = window.setTimeout(() => {
-    slowMarked = true;
-    pendingSlowRequests += 1;
-    if (pendingSlowRequests === 1) emitWakeState(true);
-  }, 1100);
-
-  try {
-    let lastErr: unknown;
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        const res = await fetch(url, init);
-        if (res.status >= 502 && res.status <= 504 && attempt < maxAttempts - 1) {
-          if (!slowMarked) {
-            slowMarked = true;
-            pendingSlowRequests += 1;
-            if (pendingSlowRequests === 1) emitWakeState(true);
-          }
-          await sleep(1200 * (attempt + 1));
-          continue;
-        }
-        return res;
-      } catch (err) {
-        lastErr = err;
-        if (attempt < maxAttempts - 1) {
-          if (!slowMarked) {
-            slowMarked = true;
-            pendingSlowRequests += 1;
-            if (pendingSlowRequests === 1) emitWakeState(true);
-          }
-          await sleep(1200 * (attempt + 1));
-          continue;
-        }
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const res = await fetch(url, init);
+      if (res.status >= 502 && res.status <= 504 && attempt < maxAttempts - 1) {
+        await sleep(1200 * (attempt + 1));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxAttempts - 1) {
+        await sleep(1200 * (attempt + 1));
+        continue;
       }
     }
-    throw lastErr instanceof Error ? lastErr : new Error("Unable to reach server");
-  } finally {
-    window.clearTimeout(slowTimer);
-    if (slowMarked) {
-      pendingSlowRequests = Math.max(0, pendingSlowRequests - 1);
-      if (pendingSlowRequests === 0) emitWakeState(false);
-    }
   }
+  throw lastErr instanceof Error ? lastErr : new Error("Unable to reach server");
 }
 
 async function apiFetch<T>(
@@ -306,6 +265,12 @@ export const api = {
     apiFetch<RecommendationsResponse>(
       `/recommendations/industry/${encodeURIComponent(industry)}?k=${k}`
     ),
+
+  getSuperheroRecommendations: (k = 100, industry?: string) => {
+    const qs = new URLSearchParams({ k: String(k) });
+    if (industry) qs.set("industry", industry);
+    return apiFetch<RecommendationsResponse>(`/recommendations/superheroes?${qs.toString()}`);
+  },
 
   getTasteProfile: () => apiFetch<TasteProfileResponse>("/recommendations/profile"),
 

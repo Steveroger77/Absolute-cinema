@@ -14,6 +14,7 @@ import { useAuth } from "../context/AuthContext";
 import { useMovieTransition } from "../context/TransitionContext";
 import { api } from "../lib/api";
 import { heroCtaGlassTokens } from "../lib/colorHarmony";
+import { invalidateRecommendationQueries } from "../lib/queryInvalidation";
 import { prefersReducedMotion } from "../lib/tier";
 
 export function MovieDetailPage() {
@@ -153,10 +154,7 @@ export function MovieDetailPage() {
       notify(e.message, "error");
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["movie", movieId] });
-      queryClient.invalidateQueries({ queryKey: ["my-ratings"] });
-      queryClient.invalidateQueries({ queryKey: ["recs"] });
-      queryClient.invalidateQueries({ queryKey: ["because"] });
+      invalidateRecommendationQueries(queryClient, movieId);
     },
   });
 
@@ -176,10 +174,7 @@ export function MovieDetailPage() {
       notify(e.message, "error");
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["movie", movieId] });
-      queryClient.invalidateQueries({ queryKey: ["my-ratings"] });
-      queryClient.invalidateQueries({ queryKey: ["recs"] });
-      queryClient.invalidateQueries({ queryKey: ["because"] });
+      invalidateRecommendationQueries(queryClient, movieId);
     },
   });
 

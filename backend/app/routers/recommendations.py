@@ -254,6 +254,37 @@ def recommend_similar(
     )
 
 
+@router.get("/superheroes", response_model=RecommendationsResponse)
+def recommend_superheroes(
+    k: int = Query(default=100, ge=1, le=150),
+    industry: str | None = Query(default=None, max_length=32),
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+) -> RecommendationsResponse:
+    _require_model()
+    uid, history, timestamps, pref_genres, pref_industries = _load_user_context(user, db)
+    recs = recommender_service.recommend_superheroes(
+        k=k,
+        industry=industry,
+        user_id=uid,
+        user_history=history,
+        user_timestamps=timestamps,
+        preferred_genres=pref_genres,
+        preferred_industries=pref_industries,
+    )
+    if history:
+        strategy = "personalized_superheroes"
+    elif pref_genres or pref_industries:
+        strategy = "onboarding_cold_start"
+    else:
+        strategy = "superhero_collection"
+    return RecommendationsResponse(
+        strategy=strategy,
+        model_version=recommender_service.version or "unknown",
+        items=_hydrate_recommendations(recs, db),
+    )
+
+
 @router.get("/genre/{genre}", response_model=RecommendationsResponse)
 def recommend_by_genre(
     genre: str,

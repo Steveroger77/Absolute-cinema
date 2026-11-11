@@ -13,7 +13,6 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { subscribeServerWake } from "../lib/api";
 import { prefersReducedMotion } from "../lib/tier";
 import { LiquidGlassSurface } from "./LiquidGlassSurface";
 import { SearchOverlay } from "./SearchOverlay";
@@ -117,7 +116,6 @@ function SlidingNavTabs({ items, ariaLabel }: { items: NavTabItem[]; ariaLabel: 
 export function AppShell({ children, activeIndustry, onSelectIndustry }: AppShellProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const [serverWaking, setServerWaking] = useState(false);
   const [menuHoverIdx, setMenuHoverIdx] = useState(-1);
   const [menuHighlightRect, setMenuHighlightRect] = useState<{ top: number; height: number }>({
     top: 0,
@@ -135,10 +133,6 @@ export function AppShell({ children, activeIndustry, onSelectIndustry }: AppShel
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-
-  useEffect(() => {
-    return subscribeServerWake(setServerWaking);
-  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -490,32 +484,6 @@ export function AppShell({ children, activeIndustry, onSelectIndustry }: AppShel
           </LiquidGlassSurface>
         </div>
       </header>
-
-      {/* On-brand Render cold-start wake banner shown only when requests wait >= 1.1s */}
-      {serverWaking && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="cinema-container pb-2"
-          style={{ zIndex: "var(--z-sticky-nav)" }}
-        >
-          <div
-            className="glass-surface mx-auto w-fit px-4 py-2 rounded-full border flex items-center gap-2.5 text-xs"
-            style={{
-              borderColor: "var(--glass-accent-border)",
-              background: "var(--glass-accent-bg)",
-              color: "var(--soft-amber)",
-            }}
-          >
-            <span
-              aria-hidden="true"
-              className="w-2 h-2 rounded-full animate-pulse"
-              style={{ backgroundColor: "var(--soft-amber)" }}
-            />
-            <span>Waking the projector…</span>
-          </div>
-        </div>
-      )}
 
       {/* Main content stage targeted by shared-element transitions */}
       <main

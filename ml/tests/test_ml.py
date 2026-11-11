@@ -518,3 +518,21 @@ def test_real_model_personalization_scenarios() -> None:
         "Sci-Fi" in eng.genres_by_id[r.movie_id] or eng.industry_by_id[r.movie_id] == "tollywood"
         for r in cold
     )
+
+    # 7. Superhero collection spans Hollywood, Bollywood & Tollywood (excludes non-hero satire like Birdman)
+    title_by_id = dict(zip(cat["movie_id"].astype(int), cat["title"], strict=False))
+    hero_all = eng.recommend_superheroes(90_006, {}, k=100)
+    assert len(hero_all) >= 60
+    hero_ids = {r.movie_id for r in hero_all}
+    hero_titles = {title_by_id[r.movie_id] for r in hero_all}
+    assert {"The Dark Knight", "Spider-Man", "Krrish", "Hanu-Man"}.issubset(hero_titles)
+    assert 112183 not in hero_ids
+
+    # 8. Rating a single film (The Dark Knight 5★) places direct superhero neighbors in top 5
+    dk_id = int(cat[cat["title"] == "The Dark Knight"]["movie_id"].iloc[0])
+    single_hero_recs = eng.recommend_for_user(90_007, {dk_id: 5.0}, k=10)
+    top5_titles = {title_by_id[r.movie_id] for r in single_hero_recs[:5]}
+    assert "The Dark Knight Rises" in top5_titles
+    assert "Batman Begins" in top5_titles
+    hero_personal = eng.recommend_superheroes(90_007, {dk_id: 5.0}, k=100)
+    assert dk_id in {r.movie_id for r in hero_personal}

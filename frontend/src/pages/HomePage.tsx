@@ -11,6 +11,7 @@ import { useAuth } from "../context/AuthContext";
 import { useMovieTransition } from "../context/TransitionContext";
 import { usePosterHover } from "../hooks/usePosterHover";
 import { api } from "../lib/api";
+import { invalidateRecommendationQueries } from "../lib/queryInvalidation";
 import { prefersReducedMotion } from "../lib/tier";
 import type { MovieSummary, RecommendedMovie, UserRatingItem } from "../types/cinema";
 
@@ -246,14 +247,29 @@ export function HomePage() {
     queryFn: () => api.getTrending(industry, 15),
   });
 
+  const { data: myRatings = [] } = useQuery({
+    queryKey: ["my-ratings", userKey],
+    queryFn: api.getMyRatings,
+    enabled: Boolean(user),
+  });
+
+  const hasRatedFilms = Boolean(user && myRatings.length > 0);
+
   const { data: recRes, isLoading: loadingRecs } = useQuery({
     queryKey: ["recs", "me", userKey, industry || "all"],
     queryFn: () => api.getRecommendationsMe({ k: 18, industry }),
+    enabled: hasRatedFilms,
   });
 
   const { data: becauseRes } = useQuery({
     queryKey: ["because", userKey, industry || "all"],
     queryFn: () => api.getBecauseYouRated(industry, 3, 16),
+    enabled: hasRatedFilms,
+  });
+
+  const { data: superheroRes, isLoading: loadingSuperheroes } = useQuery({
+    queryKey: ["superheroes", userKey, industry || "all"],
+    queryFn: () => api.getSuperheroRecommendations(100, industry),
   });
 
   const { data: hollyRec } = useQuery({
@@ -277,12 +293,6 @@ export function HomePage() {
   const { data: watchlist = [] } = useQuery({
     queryKey: ["watchlist", userKey],
     queryFn: api.getWatchlist,
-    enabled: Boolean(user),
-  });
-
-  const { data: myRatings = [] } = useQuery({
-    queryKey: ["my-ratings", userKey],
-    queryFn: api.getMyRatings,
     enabled: Boolean(user),
   });
 
@@ -313,36 +323,35 @@ export function HomePage() {
       const rKey = ["my-ratings", userKey];
       await queryClient.cancelQueries({ queryKey: rKey });
       const prev = queryClient.getQueryData<UserRatingItem[]>(rKey);
-      if (prev) {
-        const exists = prev.some((r) => r.movie_id === movieId);
-        const matchMovie =
-          trending.find((m) => m.id === movieId) ?? pickedMovies.find((m) => m.id === movieId);
-        const nextList = exists
-          ? prev.map((r) => (r.movie_id === movieId ? { ...r, rating } : r))
-          : matchMovie
-            ? [
-                {
-                  movie_id: movieId,
-                  rating,
-                  source: "user",
-                  rated_at: new Date().toISOString(),
-                  movie: matchMovie,
-                },
-                ...prev,
-              ]
-            : prev;
-        queryClient.setQueryData(rKey, nextList);
-      }
+      const baseList = prev ?? [];
+      const exists = baseList.some((r) => r.movie_id === movieId);
+      const matchMovie =
+        trending.find((m) => m.id === movieId) ??
+        superheroMovies.find((m) => m.id === movieId) ??
+        pickedMovies.find((m) => m.id === movieId);
+      const nextList = exists
+        ? baseList.map((r) => (r.movie_id === movieId ? { ...r, rating } : r))
+        : matchMovie
+          ? [
+              {
+                movie_id: movieId,
+                rating,
+                source: "user",
+                rated_at: new Date().toISOString(),
+                movie: matchMovie,
+              },
+              ...baseList,
+            ]
+          : baseList;
+      queryClient.setQueryData(rKey, nextList);
       return { prev, rKey };
     },
     onError: (err: Error, _vars, ctx) => {
       if (ctx?.prev !== undefined) queryClient.setQueryData(ctx.rKey, ctx.prev);
       notify(err.message, "error");
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-ratings"] });
-      queryClient.invalidateQueries({ queryKey: ["recs"] });
-      queryClient.invalidateQueries({ queryKey: ["because"] });
+    onSettled: (_data, _err, vars) => {
+      invalidateRecommendationQueries(queryClient, vars.movieId);
     },
   });
 
@@ -362,26 +371,35 @@ export function HomePage() {
     rateMutation.mutate({ movieId, rating });
   };
 
+  const superheroMovies: MovieSummary[] = useMemo(
+    () => (superheroRes?.items ?? []).map((it) => it.movie),
+    [superheroRes]
+  );
+
   const pickedMovies: MovieSummary[] = useMemo(
-    () => (recRes?.items ?? []).map((it) => it.movie),
-    [recRes]
+    () => (hasRatedFilms ? (recRes?.items ?? []).map((it) => it.movie) : []),
+    [hasRatedFilms, recRes]
   );
 
   const explainedItems: RecommendedMovie[] = useMemo(
     () =>
-      (recRes?.items ?? [])
-        .filter((it) => it.reasons.some((r) => r.type === "because_you_rated" && r.title))
-        .slice(0, 4),
-    [recRes]
+      hasRatedFilms
+        ? (recRes?.items ?? [])
+            .filter((it) => it.reasons.some((r) => r.type === "because_you_rated" && r.title))
+            .slice(0, 4)
+        : [],
+    [hasRatedFilms, recRes]
   );
 
   const industryOrder = useMemo(() => {
-    const raw = becauseRes?.industry_order ?? ["hollywood", "bollywood", "tollywood"];
+    const raw = hasRatedFilms
+      ? (becauseRes?.industry_order ?? ["hollywood", "bollywood", "tollywood"])
+      : ["hollywood", "bollywood", "tollywood"];
     return raw.filter(
       (i): i is "hollywood" | "bollywood" | "tollywood" =>
         i === "hollywood" || i === "bollywood" || i === "tollywood"
     );
-  }, [becauseRes?.industry_order]);
+  }, [hasRatedFilms, becauseRes?.industry_order]);
 
   const industryRecsMap = useMemo(
     () => ({
@@ -393,9 +411,12 @@ export function HomePage() {
   );
 
   const orderedGenres = useMemo(() => {
-    const src = becauseRes?.genre_order?.length ? becauseRes.genre_order : DEFAULT_GENRE_ORDER;
+    const src =
+      hasRatedFilms && becauseRes?.genre_order?.length
+        ? becauseRes.genre_order
+        : DEFAULT_GENRE_ORDER;
     return src.slice(0, 8);
-  }, [becauseRes?.genre_order]);
+  }, [hasRatedFilms, becauseRes?.genre_order]);
 
   // Smooth FLIP reorder when personalized genre row priority changes live
   const genreNodeMapRef = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -435,12 +456,17 @@ export function HomePage() {
     prevGenreTopsRef.current = nextTops;
   }, [genreSig, orderedGenres]);
 
+  const superheroSubtitle =
+    superheroRes?.strategy === "personalized_superheroes"
+      ? "Every superhero film in the catalogue — ordered dynamically by your taste"
+      : industry
+        ? `Every ${industry} superhero film in the catalogue`
+        : "Every superhero film across Hollywood, Bollywood, and Tollywood";
+
   const pickedSubtitle =
     recRes?.strategy === "personalized_hybrid_cf"
-      ? "Blended item and user collaborative filtering tailored to your ratings"
-      : recRes?.strategy === "onboarding_cold_start"
-        ? "Steered by your selected genres and industries"
-        : "Bayesian-weighted essentials curated across Hollywood, Bollywood, and Tollywood";
+      ? "Similar to the films you’ve rated — updates live with every star"
+      : "Recommendations similar to your rated films";
 
   return (
     <AppShell activeIndustry={industry} onSelectIndustry={setIndustry}>
@@ -480,34 +506,40 @@ export function HomePage() {
         </section>
       )}
 
-      {/* Picked for you */}
-      {loadingRecs ? (
+      {/* Superheroes — full superhero collection across industries */}
+      {loadingSuperheroes ? (
         <section className="cinema-container py-6">
           <div className="skeleton-block h-8 w-52 mb-4" />
           <div className="skeleton-block w-full h-80" />
         </section>
-      ) : (
+      ) : superheroMovies.length > 0 ? (
         <PosterCarousel
-          title="Picked for you"
-          subtitle={pickedSubtitle}
-          movies={pickedMovies}
+          title="Superheroes"
+          subtitle={superheroSubtitle}
+          movies={superheroMovies}
           syncGlobalAmbient
           priorityFirst
         />
-      )}
+      ) : null}
 
-      {/* Trending spotlight carousel */}
-      {!loadingTrending && trending.length > 0 && (
-        <PosterCarousel
-          title={industry ? `Trending in ${industry}` : "Trending across industries"}
-          subtitle="Acclaimed releases gaining momentum across viewers"
-          movies={trending}
-          syncGlobalAmbient
-        />
-      )}
+      {/* Picked for you — only appears after the user rates at least one film */}
+      {hasRatedFilms &&
+        (loadingRecs ? (
+          <section className="cinema-container py-6">
+            <div className="skeleton-block h-8 w-52 mb-4" />
+            <div className="skeleton-block w-full h-80" />
+          </section>
+        ) : pickedMovies.length > 0 ? (
+          <PosterCarousel
+            title="Picked for you"
+            subtitle={pickedSubtitle}
+            movies={pickedMovies}
+            syncGlobalAmbient
+          />
+        ) : null)}
 
       {/* Transparent "Because you rated..." explanations */}
-      {explainedItems.length > 0 && (
+      {hasRatedFilms && explainedItems.length > 0 && (
         <section className="cinema-container py-8" aria-label="Recommendation explanations">
           <div className="flex items-end justify-between gap-4 mb-5">
             <div>
@@ -535,7 +567,7 @@ export function HomePage() {
       )}
 
       {/* Dedicated "Because you rated X" nearest-neighbor shelves */}
-      {(becauseRes?.rows ?? []).map((row) => (
+      {(hasRatedFilms ? (becauseRes?.rows ?? []) : []).map((row) => (
         <PosterCarousel
           key={`because-${row.anchor.id}`}
           title={`Because you rated ${row.anchor.title}`}
