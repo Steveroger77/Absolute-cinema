@@ -187,6 +187,13 @@ async function apiFetch<T>(
     const errCode = body?.error?.code || `http_${res.status}`;
     throw new ApiError(res.status, errCode, errMsg);
   }
+  if (body === null) {
+    throw new ApiError(
+      502,
+      "invalid_api_response",
+      "Backend returned non-JSON content. Check that VITE_API_BASE_URL points to the FastAPI API URL, not the static frontend URL."
+    );
+  }
   return body as T;
 }
 
