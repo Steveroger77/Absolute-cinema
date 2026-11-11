@@ -45,8 +45,8 @@ skills-lock.json
 AGENTS.md
 CLAUDE.md
 GEMINI.md
-brain/
-artifacts/
+/brain/
+/artifacts/
 *.log
 .DS_Store
 Thumbs.db

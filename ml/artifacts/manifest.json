@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "artifact_filename": "model_v1.joblib",
+  "sha256": "40a0e2a7bd75775ea437c046e5c03fc4016e6ebb46c18257fd41dbf3de97cdc5",
+  "trained_at": "2026-11-11T13:33:06.550004+00:00",
+  "total_movies": 2300,
+  "total_ratings": 83473,
+  "weights": {
+    "alpha": 0.65,
+    "cf_weight": 0.7,
+    "content_weight": 0.3,
+    "taste_weight": 0.32,
+    "item_shrinkage": 10.0,
+    "user_shrinkage": 12.0
+  }
+}

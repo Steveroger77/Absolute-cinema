@@ -1,0 +1,103 @@
+{
+  "version": "v1",
+  "trained_at": "2026-11-11T13:33:06.550004+00:00",
+  "hyperparameters": {
+    "alpha": 0.65,
+    "item_shrinkage": 10.0,
+    "user_shrinkage": 12.0,
+    "cf_weight": 0.7,
+    "content_weight": 0.3,
+    "taste_weight": 0.32,
+    "item_top_n": 55,
+    "user_top_m": 45,
+    "k_eval": 10
+  },
+  "dataset": {
+    "total_movies": 2300,
+    "industries": {
+      "hollywood": 1350,
+      "bollywood": 475,
+      "tollywood": 475
+    },
+    "total_ratings": 83473,
+    "movielens_ratings": 67881,
+    "synthetic_ratings": 15592,
+    "synthetic_disclosure": "Non-MovieLens Indian cinema titles (Bollywood/Tollywood) include deterministically seeded (random_state=42) synthetic user-item ratings flagged source='synthetic'. Metrics are reported separately for real MovieLens interactions and all interactions.",
+    "train_val_ratings": 67135,
+    "test_ratings": 16338,
+    "matrix_nnz": 67135,
+    "matrix_density": 0.031386
+  },
+  "metrics": {
+    "movielens": {
+      "hybrid_cf": {
+        "n_eval_ratings": 13332,
+        "n_eval_users": 587,
+        "rmse": 0.8446,
+        "mae": 0.6405,
+        "precision_at_10": 0.0693,
+        "recall_at_10": 0.0593,
+        "catalogue_coverage_at_10": 0.1483,
+        "popularity_bias_mean_log_pop": 0.7962,
+        "popularity_gini": 0.9644
+      },
+      "item_cf_baseline": {
+        "n_eval_ratings": 13332,
+        "n_eval_users": 587,
+        "rmse": 0.8605,
+        "mae": 0.6501,
+        "precision_at_10": 0.0656,
+        "recall_at_10": 0.0526,
+        "catalogue_coverage_at_10": 0.2183,
+        "popularity_bias_mean_log_pop": 0.7737,
+        "popularity_gini": 0.9439
+      },
+      "user_cf_baseline": {
+        "n_eval_ratings": 13332,
+        "n_eval_users": 587,
+        "rmse": 0.8869,
+        "mae": 0.6757,
+        "precision_at_10": 0.0586,
+        "recall_at_10": 0.0525,
+        "catalogue_coverage_at_10": 0.0896,
+        "popularity_bias_mean_log_pop": 0.8071,
+        "popularity_gini": 0.9759
+      }
+    },
+    "all": {
+      "hybrid_cf": {
+        "n_eval_ratings": 16338,
+        "n_eval_users": 902,
+        "rmse": 0.8271,
+        "mae": 0.6318,
+        "precision_at_10": 0.0473,
+        "recall_at_10": 0.0418,
+        "catalogue_coverage_at_10": 0.1704,
+        "popularity_bias_mean_log_pop": 0.7414,
+        "popularity_gini": 0.96
+      },
+      "item_cf_baseline": {
+        "n_eval_ratings": 16338,
+        "n_eval_users": 902,
+        "rmse": 0.8415,
+        "mae": 0.6408,
+        "precision_at_10": 0.0451,
+        "recall_at_10": 0.0378,
+        "catalogue_coverage_at_10": 0.2465,
+        "popularity_bias_mean_log_pop": 0.7275,
+        "popularity_gini": 0.9428
+      },
+      "user_cf_baseline": {
+        "n_eval_ratings": 16338,
+        "n_eval_users": 902,
+        "rmse": 0.8639,
+        "mae": 0.6617,
+        "precision_at_10": 0.0405,
+        "recall_at_10": 0.0377,
+        "catalogue_coverage_at_10": 0.1109,
+        "popularity_bias_mean_log_pop": 0.7485,
+        "popularity_gini": 0.9686
+      }
+    }
+  }
+}
